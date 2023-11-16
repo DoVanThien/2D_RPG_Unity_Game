@@ -1,37 +1,38 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.TextCore;
 
-public class Player : MonoBehaviour
+public class Player : Entity
 {
-    [Header("Object")]
-    [SerializeField] private Rigidbody2D _rb;
-    [SerializeField] private Animator _anim;
-    [SerializeField] private LayerMask ground;
-
     [Header("Attribute")]
     [SerializeField] private float _jumpForce;
     [SerializeField] private float _moveSpeed;
-    
+
     [Header("Dash")]
     [SerializeField] private float _dashDuration;
     [SerializeField] private float _dashSpeed;
     [SerializeField] private float _dashCoolDown;
+
+    [Header("Attack")]
+    [SerializeField] private float _comboTimeCount;
     private float _dashCoolDownTime;
     private float _dashTime;
-    private float _groundCheckDistance = 1.5f;
-    private bool _isGround;
     private float _xInput;
-    private bool _facingRight = true;
+    private bool _isAttacking;
+    private int _comboAttackCount;
+    private float _comboTime;
 
-    void Start()
+    protected override void Start()
     {
-
+        base.Start();
     }
 
-    void Update()
+    protected override void Update()
     {
+        base.Update();
+
         Movement();
         FlipController();
         AnimotorController();
@@ -40,9 +41,10 @@ public class Player : MonoBehaviour
     void Movement()
     {
         _xInput = Input.GetAxisRaw("Horizontal");
-        _isGround = Physics2D.Raycast(transform.position, Vector2.down, _groundCheckDistance, ground);
+       
         _dashTime -= Time.deltaTime;
         _dashCoolDownTime -= Time.deltaTime;
+        _comboTime -= Time.deltaTime;
 
         if (Input.GetKeyDown(KeyCode.Space))
         {
@@ -54,11 +56,20 @@ public class Player : MonoBehaviour
             Dash();
         }
 
-        if (_dashTime > 0)
+        if (Input.GetKeyDown(KeyCode.J) && _isGround)
         {
-            _rb.velocity = new Vector2(_xInput * _dashSpeed, 0);
+            Attack();
         }
-        else
+
+        if (_isAttacking) 
+        {
+            _rb.velocity = new Vector2(0, 0);
+        }
+        if (_dashTime > 0 && !_isAttacking)
+        {
+            _rb.velocity = new Vector2(_facingDir * _dashSpeed, 0);
+        }
+        else if (!_isAttacking)
         {
             _rb.velocity = new Vector2(_xInput * _moveSpeed, _rb.velocity.y);
         }
@@ -66,7 +77,7 @@ public class Player : MonoBehaviour
 
     void Jump()
     {
-        if (_isGround)
+        if (_isGround && !_isAttacking)
         {
             _rb.velocity = new Vector2(_rb.velocity.x, _jumpForce);
         }
@@ -81,6 +92,28 @@ public class Player : MonoBehaviour
         }
     }
 
+    void Attack()
+    {
+        if (_comboTime < 0)
+        {
+            _comboAttackCount = 0;
+        }
+
+        _isAttacking = true;
+        _comboTime = _comboTimeCount;
+    }
+
+    public void AttackOver()
+    {
+        _isAttacking = false;
+        _comboAttackCount++;
+
+        if (_comboAttackCount > 2)
+        {
+            _comboAttackCount = 0;
+        }
+    }
+
     void AnimotorController()
     {
         bool _isMoving = _xInput != 0;
@@ -88,19 +121,15 @@ public class Player : MonoBehaviour
         _anim.SetBool("IsGround", _isGround);
         _anim.SetFloat("yVelocity", _rb.velocity.y);
         _anim.SetBool("IsDashing", _dashTime > 0);
-    }
-
-    void Flip()
-    {
-        _facingRight = !_facingRight;
-        transform.Rotate(0, 180, 0);
+        _anim.SetBool("IsAttacking", _isAttacking);
+        _anim.SetInteger("ComboCount", _comboAttackCount);
     }
 
     void FlipController()
     {
-        if (_xInput == -1 && _facingRight)
+        if (_xInput == -1 && _facingRight && !_isAttacking)
             Flip();
-        else if (_xInput == 1 && !_facingRight)
+        else if (_xInput == 1 && !_facingRight && !_isAttacking)
             Flip();
     }
 }
